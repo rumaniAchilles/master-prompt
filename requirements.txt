@@ -1,0 +1,17 @@
+# Cliente para los modelos de IA (Maverick)
+fireworks-ai
+
+# Orquestación del backend modular
+langgraph
+
+# Procesamiento de documentos PDF y conversión a imágenes
+pymupdf
+
+# Manejo de variables de entorno (opcional pero recomendado para la API KEY)
+python-dotenv
+
+customtkinter
+
+pyinstaller
+
+tkinterdnd2

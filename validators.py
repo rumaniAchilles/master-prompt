@@ -14,7 +14,7 @@ def normalize_string(text):
     # 1. TRUCO DE COMILLAS: Unificar curvas y rectas
     text = text.replace("’", "'").replace("`", "'").replace("“", '"').replace("”", '"')
     
-    # 2. TRUCO DE MESES (Ayuda a fechas escritas)
+    # 2. TRUCO DE MESES (Ayuda a fechas escritas en validaciones de texto plano)
     replacements = {"AGOSTO": "08", "JULIO": "07", "SETTEMBRE": "09", "SEPTIEMBRE": "09"} 
     for mes, num in replacements.items():
         text = text.replace(mes, num)
@@ -32,17 +32,32 @@ class InfocontrolValidators:
 
     @staticmethod
     def script_equals(extracted, expected, **kwargs):
-        """Igualdad estricta (pero agnóstica de mayúsculas/espacios extra)."""
-        # Para IDs, a veces conviene ignorar espacios internos, aquí confiamos en normalize_string
-        # Si quieres ser muy estricto con IDs espaciados, podrías comparar .replace(" ", "") aquí dentro.
-        return normalize_string(extracted) == normalize_string(expected)
+        """
+        Igualdad flexible: 
+        1. Compara normalizado (respetando palabras).
+        2. Si falla, compara SIN ESPACIOS (ideal para IDs '947 449' vs '947449').
+        """
+        norm_ext = normalize_string(extracted)
+        norm_exp = normalize_string(expected)
+        
+        # 1. Intento Directo (Juan Perez == JUAN PEREZ)
+        if norm_ext == norm_exp: 
+            return True
+        
+        # 2. Intento Sin Espacios (947 449 842 == 947449842)
+        if norm_ext.replace(" ", "") == norm_exp.replace(" ", ""):
+            return True
+            
+        return False
 
     @staticmethod
     def script_strict_equals(extracted, expected, **kwargs):
+        """Igualdad exacta caracter por caracter."""
         return str(extracted).strip() == str(expected).strip()
 
     @staticmethod
     def script_percentage_match(extracted, expected, threshold=0.4, **kwargs):
+        """Comparación difusa por porcentaje de similitud (Levenshtein)."""
         s1, s2 = str(extracted).upper(), str(expected).upper()
         return difflib.SequenceMatcher(None, s1, s2).ratio() >= float(threshold)
 
@@ -58,29 +73,84 @@ class InfocontrolValidators:
         Verifica si TODAS las palabras del esperado están en el extraído, 
         sin importar el orden. (Ideal para Nombres Invertidos: 'Kevin Javier' == 'Javier Kevin')
         """
-        # Creamos sets de palabras únicas
         e1_tokens = set(normalize_string(extracted).split())
         e2_tokens = set(normalize_string(expected).split())
-        
-        # ¿Están todos los tokens de la expectativa dentro de lo extraído?
-        # (O viceversa, por si el extraído es parcial)
         return e2_tokens.issubset(e1_tokens) or e1_tokens.issubset(e2_tokens)
 
     @staticmethod
-    def script_comparison_dates(extracted, expected, **kwargs):
-        try:
-            # Intenta normalizar formatos de fecha para que coincidan (ISO format)
-            d1 = datetime.strptime(str(extracted).strip(), "%Y-%m-%d")
-            d2 = datetime.strptime(str(expected).strip(), "%Y-%m-%d")
+    def script_date_match(extracted, expected, **kwargs):
+        """
+        COMPARADOR UNIVERSAL DE FECHAS
+        Entiende: '2025-10-22' == '22 de octubre de 2025' == '22/10/25'
+        Soporta: Español, Inglés, Italiano, Portugués.
+        """
+        def parse_smart_date(val):
+            if not val: return None
+            val_clean = str(val).upper().strip()
+            
+            # 1. Mapa de Meses Multilingüe
+            months = {
+                "JANUARY": "01", "ENERO": "01", "GENNAIO": "01", "JANEIRO": "01",
+                "FEBRUARY": "02", "FEBRERO": "02", "FEBBRAIO": "02", "FEVEREIRO": "02",
+                "MARCH": "03", "MARZO": "03", "MARCO": "03",
+                "APRIL": "04", "ABRIL": "04", "APRILE": "04",
+                "MAY": "05", "MAYO": "05", "MAGGIO": "05", "MAIO": "05",
+                "JUNE": "06", "JUNIO": "06", "GIUGNO": "06", "JUNHO": "06",
+                "JULY": "07", "JULIO": "07", "LUGLIO": "07", "JULHO": "07",
+                "AUGUST": "08", "AGOSTO": "08", "AGO": "08",
+                "SEPTEMBER": "09", "SEPTIEMBRE": "09", "SETTEMBRE": "09", "SETEMBRO": "09", "SEP": "09", "SET": "09",
+                "OCTOBER": "10", "OCTUBRE": "10", "OTTOBRE": "10", "OUTUBRO": "10", "OCT": "10",
+                "NOVEMBER": "11", "NOVIEMBRE": "11", "NOVEMBRE": "11", "NOV": "11",
+                "DECEMBER": "12", "DICIEMBRE": "12", "DICEMBRE": "12", "DEZEMBRO": "12", "DIC": "12"
+            }
+            
+            # Reemplazo de palabras por números
+            for name, num in months.items():
+                if name in val_clean:
+                    val_clean = val_clean.replace(name, num)
+            
+            # Limpieza de conectores ("DE", "DEL", "OF")
+            val_clean = re.sub(r'\b(DE|DEL|OF|THE)\b', ' ', val_clean)
+            # Limpieza de símbolos (deja solo números y espacios)
+            val_clean = re.sub(r'[^0-9]', ' ', val_clean)
+            
+            # Normalización de espacios
+            parts = val_clean.split()
+            
+            if len(parts) == 3:
+                # Intentamos adivinar formato: YMD, DMY, MDY
+                try:
+                    p1, p2, p3 = int(parts[0]), int(parts[1]), int(parts[2])
+                    
+                    # Caso ISO: 2025 10 22
+                    if p1 > 1900: 
+                        return datetime(p1, p2, p3)
+                    # Caso Invertido: 22 10 2025
+                    if p3 > 1900:
+                        return datetime(p3, p2, p1)
+                except: pass
+            return None
+
+        # Intentamos parsear ambas fechas como objetos datetime
+        d1 = parse_smart_date(extracted)
+        d2 = parse_smart_date(expected)
+
+        # Si ambas son fechas válidas, comparamos los objetos (ignora formato texto)
+        if d1 and d2:
             return d1 == d2
-        except:
-            # Fallback a igualdad de texto si falla el parseo de fecha
-            return InfocontrolValidators.script_equals(extracted, expected)
+        
+        # Si falla el parseo, fallback a comparación de texto normalizada
+        return normalize_string(extracted) == normalize_string(expected)
 
 def validate_result(actual, expected, rules):
+    # --- CORRECCIÓN CRÍTICA: ANTI-CRASH /0 ---
+    # Si no hay datos esperados, devolvemos 0.0 inmediatamente y un error claro
+    if not expected:
+        return ["ERROR CRÍTICO: No se encontraron datos esperados contra los cuales validar."], 0.0
+
     # Validación de estructura básica
     if not actual or not isinstance(actual, dict): 
-        return ["ERROR: Formato de salida inválido"], 0.0
+        return ["ERROR: La IA no devolvió un formato JSON válido (Formato de salida inválido)"], 0.0
     
     mismatches, correct = [], 0
     validator = InfocontrolValidators()
@@ -97,10 +167,11 @@ def validate_result(actual, expected, rules):
         rule_cfg = rules.get(field, "equals")
         rule_name = rule_cfg.get("rule", "equals") if isinstance(rule_cfg, dict) else rule_cfg
         
-        # --- MAPEO INTELIGENTE DE REGLAS DEL JUEZ ---
-        # Si el Optimizador sugiere reglas nuevas, las redirigimos a los métodos que sí existen
-        if rule_name == "contains_full": rule_name = "contains_fuzzy" # Redirección clave para nombres
+        # --- MAPEO INTELIGENTE DE REGLAS DEL JUEZ (ALIASES) ---
+        if rule_name == "contains_full": rule_name = "contains_fuzzy"
         if rule_name == "contains_related": rule_name = "contains"
+        if "date" in rule_name.lower() or "iso" in rule_name.lower(): 
+            rule_name = "date_match"
         
         is_match = False
 
@@ -127,4 +198,9 @@ def validate_result(actual, expected, rules):
             # LOG DETALLADO
             mismatches.append(f"ID {field}: Esperado '{val_exp}' vs Real '{val_act}' ({rule_name})")
             
-    return mismatches, (correct / len(expected)) * 100
+    # --- CÁLCULO SEGURO ---
+    total = len(expected)
+    if total > 0:
+        return mismatches, (correct / total) * 100
+    else:
+        return ["ERROR: Archivo de expected vacío"], 0.0

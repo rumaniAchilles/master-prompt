@@ -15,3 +15,5 @@ customtkinter
 pyinstaller
 
 tkinterdnd2
+
+python-dotenv

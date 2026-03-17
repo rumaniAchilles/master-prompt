@@ -7,7 +7,7 @@ import os
 import time
 import main
 from ddgs import DDGS
-import config  # <--- NUEVO: Importamos tu configuración centralizada
+import config 
 
 # ==============================================================================
 # CONFIGURACIÓN DE CLIENTES HÍBRIDOS (BRAIN-MUSCLE)

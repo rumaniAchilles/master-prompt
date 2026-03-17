@@ -1,28 +1,25 @@
 import re, unicodedata, difflib
 from datetime import datetime
 import string
+import unicodedata
+
+import unicodedata # <--- AGREGAR ESTO AL INICIO
 
 def normalize_string(text):
     """
-    Normalización base: Mayúsculas, unificación de comillas y limpieza de puntuación.
-    IMPORTANTE: Mantiene espacios simples para permitir tokenización (comparar palabras).
+    Normalización: Mayúsculas, SIN ACENTOS, sin puntuación.
     """
     if not text: return ""
-    # Convertimos a mayúsculas
     text = str(text).upper()
     
-    # 1. TRUCO DE COMILLAS: Unificar curvas y rectas
+    # 1. ELIMINAR ACENTOS (Á -> A, Ñ -> N)
+    text = ''.join(c for c in unicodedata.normalize('NFD', text) if unicodedata.category(c) != 'Mn')
+
+    # 2. TRUCO DE COMILLAS
     text = text.replace("’", "'").replace("`", "'").replace("“", '"').replace("”", '"')
     
-    # 2. TRUCO DE MESES (Ayuda a fechas escritas en validaciones de texto plano)
-    replacements = {"AGOSTO": "08", "JULIO": "07", "SETTEMBRE": "09", "SEPTIEMBRE": "09"} 
-    for mes, num in replacements.items():
-        text = text.replace(mes, num)
-        
-    # Eliminamos todos los signos de puntuación (.,-;: etc)
+    # 3. PUNTUACIÓN Y ESPACIOS
     text = text.translate(str.maketrans('', '', string.punctuation))
-    
-    # Normalizamos espacios: Elimina dobles espacios y deja solo uno entre palabras
     return " ".join(text.split())
 
 class InfocontrolValidators:
@@ -156,12 +153,23 @@ def validate_result(actual, expected, rules):
     validator = InfocontrolValidators()
 
     for field, exp_obj in expected.items():
-        # 1. Extracción segura del valor REAL
+        # 0. DEFINICIÓN DEL OBJETO ACTUAL (Faltaba esta línea crítica)
         act_obj = actual.get(field, {})
-        val_act = str(act_obj.get('value', act_obj)) if isinstance(act_obj, dict) else str(act_obj)
-        
-        # 2. Extracción segura del valor ESPERADO
-        val_exp = str(exp_obj.get('value', ''))
+
+        # 1. Extracción segura del valor REAL (Soporte Híbrido ES/EN)
+        if isinstance(act_obj, dict):
+            # Prioridad: 'valor' (Español) -> 'value' (Inglés) -> Objeto crudo
+            raw_val = act_obj.get('valor', act_obj.get('value', act_obj))
+            val_act = str(raw_val)
+        else:
+            val_act = str(act_obj)
+
+        # 2. Extracción segura del valor ESPERADO (Robustez extra)
+        # Asumimos que expected suele tener 'value', pero por si acaso buscamos 'valor' también
+        if isinstance(exp_obj, dict):
+            val_exp = str(exp_obj.get('value', exp_obj.get('valor', '')))
+        else:
+            val_exp = str(exp_obj)
         
         # 3. Determinación de la REGLA
         rule_cfg = rules.get(field, "equals")

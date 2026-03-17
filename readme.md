@@ -1,123 +1,82 @@
-🛡️ Achilles | Batch Optimizer Commander
-Achilles es una plataforma de Ingeniería de Prompts Autónoma diseñada para perfeccionar la extracción de datos de documentos complejos (PDFs, Imágenes). Utiliza una arquitectura de agentes cognitivos (basada en LangGraph) que iteran, validan y optimizan instrucciones automáticamente hasta alcanzar la máxima precisión.
+# 🏛️ Achilles | Master Prompt Engine
 
-🌟 Características Principales
-🧠 Core de Inteligencia Artificial
-Ciclo de Auto-Mejora (Hill Climbing): El sistema extrae, valida contra una "verdad" (Ground Truth) y, si falla, un agente "Arquitecto" reescribe el prompt basándose en el error específico.
+**Achilles** es un motor avanzado de Ingeniería de Prompts automatizada (Data-Driven Prompt Optimization) diseñado específicamente para la extracción de datos en documentos oficiales complejos, formularios y archivos con texto manuscrito (HTR).
 
-Memoria Histórica Persistente: Utiliza SQLite (agent_memory.db) para recordar estrategias que fallaron en el pasado y evitar bucles infinitos.
+En lugar de requerir que un humano escriba y pruebe prompts iterativamente, Achilles utiliza un **Sistema Híbrido de IA (Brain + Muscle)** orquestado mediante grafos (`LangGraph`) para evaluar, detectar fallos y reescribir sus propias instrucciones hasta alcanzar la máxima precisión de extracción posible.
 
-Modo Detective (Cold Start): Si no existe un prompt base, el sistema analiza visualmente el documento y genera uno desde cero automáticamente.
+---
 
-Validación Robusto: Comparación inteligente de fechas (ISO 8601), coincidencia difusa (Fuzzy Matching) y normalización de textos.
+## ✨ Características Principales
 
-🖥️ Interfaz de Usuario (GUI)
-Gestión por Lotes (Batch): Procesa familias enteras de documentos para asegurar que el prompt funcione en todos los casos, no solo en uno.
+* 🧠 **Arquitectura Híbrida (Azure + Fireworks):** Utiliza GPT-4o ("The Brain") para el razonamiento, detección visual y redacción de estrategias, y Llama 4 Maverick ("The Muscle") para simular la extracción masiva de datos en producción.
+* 🔄 **Bucle de Auto-Optimización (LangGraph):** El sistema extrae, valida contra una verdad fundamental (Ground Truth), analiza los errores y optimiza el prompt en un ciclo iterativo hasta alcanzar un umbral de éxito (ej. 98%) o un límite de intentos.
+* ✍️ **Detección Automática de Manuscritos (HTR Protocol):** El nodo de investigación detecta si el documento contiene tinta manuscrita o firmas, activando excepciones en el prompt final para prohibir la auto-corrección ortográfica y habilitar el razonamiento visual profundo.
+* 🛡️ **Zero Data Loss Protocol:** La Refinería y el Optimizador están programados para limpiar y estructurar el prompt *sin borrar jamás* las reglas de negocio específicas, condicionales o casos límite (edge cases) del usuario.
+* 🔍 **Búsqueda Semántica Dual (Smart Paging):** Escanea PDFs largos buscando coincidencias de "Llaves" y "Valores" para extraer solo las páginas relevantes y enviarlas a la IA, ahorrando tokens y previniendo alucinaciones.
 
-Editor Integrado: Permite ver, editar y cargar "Datos Esperados" y "Prompts Base" directamente desde la app.
+---
 
-Seguridad de Sintaxis: Un agente finalizador ("Syntax Enforcer") asegura que el output tenga siempre el formato {{ID:name}} requerido por aplicaciones externas.
+## ⚙️ Arquitectura del Sistema (El Grafo)
 
-Limpieza de Sesión: Botón de pánico para purgar archivos temporales y reiniciar el entorno de trabajo.
+Achilles funciona como un flujo de estados secuenciales e iterativos definido en `app.py`.
 
-🏗️ Arquitectura del Sistema
-El flujo de trabajo sigue un grafo de estados (app.py):
+1.  **Refinería (`input_refinery_node`):** Recibe un prompt inicial (si existe) y lo compila. Limpia la estructura pero blinda las reglas de negocio en un formato de pseudocódigo accionable.
+2.  **Investigador (`research_node`):** GPT-4o analiza visualmente una muestra de los documentos. Identifica anclajes universales, detecta la presencia de manuscritos (`has_handwriting`) y busca contexto legal en la web mediante DuckDuckGo.
+3.  **Extracción (`extraction_node`):** Llama 4 toma el prompt actual y las imágenes, y extrae los datos devolviendo un esquema JSON estricto (`valor`, `confianza`, `Estado`).
+4.  **Validación (`validation_node`):** Un motor lógico puro compara el JSON extraído con el Ground Truth usando reglas de negocio (coincidencia exacta, difusa, o parseo inteligente multilingüe de fechas).
+5.  **Optimización (`optimizer_node`):** "El Arquitecto". Si la extracción falla, GPT-4o analiza los errores (mismatches) y reescribe la táctica de extracción solucionando el problema, pero preservando el ADN del negocio.
+6.  *Fallback:* Si no hay prompt inicial, el **Detective** (`detective.py`) realiza un "Arranque en Frío" haciendo ingeniería inversa para crear un prompt desde cero basándose en la imagen y los datos esperados.
+7.  **Agente de Sintaxis (`syntax_enforcer_agent`):** El "Policía". Una vez finalizado el entrenamiento, compila el Prompt de Producción final, eliminando burocracia, traduciendo instrucciones al inglés (manteniendo variables en español) y forzando un único esquema JSON de ejemplo.
 
-Configurator Node: Analiza el archivo de texto de "Respuesta Esperada" (aunque sea una tabla copiada de Excel) y lo convierte a JSON estructurado.
+---
 
-Detective (Opcional): Si es una familia nueva, crea el primer prompt.
+## 🚀 Requisitos e Instalación
 
-Extraction Node: El modelo (Llama 3/4 Vision) extrae los datos del documento usando la táctica actual.
+1. **Dependencias de Python:**
+   Asegúrate de tener instalado Python 3.9+ e instala los requerimientos:
+   ```bash
+   pip install -r requirements.txt
+Configuración de Entorno (.env o config.py):
+El sistema requiere las credenciales de los modelos híbridos. Configura las siguientes variables:
 
-Validation Node: Compara la extracción con lo esperado. Calcula el Score %.
+AZURE_ENDPOINT, AZURE_API_KEY, AZURE_API_VERSION, AZURE_DEPLOYMENT_NAME (Para GPT-4o / The Brain)
 
-Optimizer Node: Si el score es bajo, analiza los errores, consulta la Base de Datos de Fallos y genera una nueva táctica.
+FIREWORKS_API_KEY, FIREWORKS_MODEL_ID (Para Llama 4 / The Muscle)
 
-Syntax Enforcer: Al finalizar, limpia "basura" conversacional del LLM y formatea las variables.
+🛠️ Uso Básico (Modo Interfaz Gráfica)
+Achilles incluye una interfaz de usuario construida con CustomTkinter (gui.py) diseñada para un flujo de trabajo ágil.
 
-🚀 Instalación y Configuración
-1. Requisitos Previos
-Python 3.10 o superior.
-
-Una API Key de Fireworks AI.
-
-(Recomendado) Entorno virtual (venv).
-
-2. Instalación de Dependencias
-Bash
-pip install -r requirements.txt
-Dependencias clave: langgraph, langchain, fireworks-ai, customtkinter, tkinterdnd2, pymupdf (fitz), python-dotenv.
-
-3. Configuración de Entorno (.env)
-Crea un archivo .env en la raíz con tu clave:
-
-Fragmento de código
-FIREWORKS_API_KEY=tu_api_key_aqui
-# FIREWORKS_MODEL=accounts/achilles/deployedModels/llama4... (Opcional, hardcoded por seguridad)
-📖 Guía de Uso
-Paso 1: Iniciar la Aplicación
-IMPORTANTE: Ejecuta siempre desde una terminal, fuera de carpetas sincronizadas por OneDrive para evitar bloqueos de archivos.
+Ejecutar la Interfaz:
 
 Bash
 python gui.py
-Paso 2: Cargar Datos
-API Key & Familia: Ingresa tu clave (si no está en .env) y el ID de Familia (ej: 7546ita).
+Identidad: Define un ID de Familia (ej. tgr_certificados_v1). Todos los documentos y prompts generados se asociarán a este ID.
 
-Nota: El ID de familia actúa como filtro. Solo procesará archivos que empiecen con ese nombre.
+Cargar Documento: Sube un PDF o JPG representativo del lote.
 
-Cargar Documento: Arrastra o selecciona el PDF/Imagen del caso.
+Cargar Datos Esperados: Sube un archivo .txt o .json con la "Verdad Fundamental" (Ground Truth) que esperas que el modelo extraiga.
 
-Cargar Datos Esperados: Sube el .txt o .json con los valores que el modelo debería encontrar.
+Formato aceptado: JSON plano o texto con estructura ID: Valor.
 
-Formato soportado: JSON puro o tablas de texto (Label Value).
+Prompt Base (Opcional): Si tienes instrucciones previas o reglas de negocio crudas, súbelas en un archivo .txt.
 
-Agregar al Lote: Presiona ⬇️ AGREGAR AL LOTE. Puedes repetir esto con varios documentos de la misma familia.
+Ejecutar: Haz clic en "Añadir al Lote" y luego en "Iniciar Optimización Maestra".
 
-Paso 3: Ejecución
-(Opcional) Carga un Prompt Base si ya tienes uno avanzado. Si no, déjalo vacío y el "Detective" creará uno.
-
-Presiona ▶️ EJECUTAR OPTIMIZACIÓN.
-
-Observa los logs en tiempo real. El sistema iterará hasta lograr 100% de precisión o agotar intentos.
-
-Paso 4: Finalización
-Si el resultado es satisfactorio, la app te preguntará si deseas Sobrescribir el Prompt Maestro.
-
-El archivo final quedará guardado en la carpeta prompt_textos/MASTER_{familia}.txt, listo para producción con las etiquetas {{key}} correctas.
+Resultado: Observa el registro de auditoría. Al finalizar, Achilles te preguntará si deseas guardar el Prompt Maestro generado en la carpeta prompt_textos/.
 
 📂 Estructura del Proyecto
-Plaintext
-/
-├── gui.py                 # Interfaz Gráfica (Controlador principal)
-├── main.py                # Lógica de Batch y Procesamiento de Archivos
-├── app.py                 # Definición del Grafo (LangGraph)
-├── nodes.py               # Cerebro: Nodos de Extracción, Validación y Optimización
-├── detective.py           # Generador de prompts iniciales (Vision Analysis)
-├── validators.py          # Lógica matemática y difusa de comparación
-├── database.py            # Gestión de Memoria (SQLite)
-├── state.py               # Definición del Estado del Agente
-├── MASTER_PROMPT_GUIDE.md # "Constitución" técnica para el LLM
-├── agent_memory.db        # Base de datos local (auto-generada)
-├── casos_docs/            # Carpeta temporal de documentos cargados
-└── prompt_textos/         # Destino de los Prompts Maestros generados
-🔧 Solución de Problemas Comunes
-🔴 Error: [Errno 13] Permission denied o WinError 5
-Causa: Windows o OneDrive tienen bloqueado el archivo .exe o la carpeta casos_docs.
+app.py: Definición del Grafo de LangGraph y las rutas condicionales.
 
-Solución:
+nodes.py: Contiene la lógica profunda de cada nodo (Refinería, IA Forense, Llama, Arquitecto).
 
-Mueve el proyecto a una carpeta local (ej: C:\Proyectos\Achilles) fuera de OneDrive.
+gui.py: Frontend interactivo y orquestador del paso final de Sintaxis.
 
-Ejecuta con python gui.py en lugar de usar el ejecutable compilado.
+main.py: Ejecutor de lotes, pre-procesamiento de PDFs a JPG (300 DPI) e inicializador del estado general.
 
-Usa el botón "🗑️ NUEVA SESIÓN" en la GUI para forzar el desbloqueo de archivos.
+detective.py: Agente especializado en "Arranque en Frío" mediante ingeniería inversa.
 
-🔴 Error: ZeroDivisionError
-Causa: El archivo de "Datos Esperados" está vacío o ilegible, por lo que el validador intenta dividir aciertos sobre cero.
+validators.py: Funciones matemáticas y de texto para comparar el dato extraído vs. el esperado (Fechas, Levenshtein, Normalización).
 
-Solución: Verifica que tu .txt de expected tenga datos. El sistema ahora tiene protección contra esto, pero revisa tus inputs.
+database.py: Memoria SQLite (AgentMemory) para evitar repetir errores pasados.
 
-🔴 Error: "No se pudieron leer datos del caso semilla"
-Causa: Estás probando una familia nueva sin prompt base y el formato del archivo expected es muy extraño.
-
-Solución: Asegúrate de que tu archivo expected tenga una estructura clara (clave-valor o tabla con encabezados). El nodes.py actual incluye un "Arquitecto Robusto" para mitigar esto.
+MASTER_PROMPT_GUIDE.md: La "Constitución" que guía al Arquitecto sobre cómo escribir buenos prompts, incluyendo el protocolo HTR para manuscritos.

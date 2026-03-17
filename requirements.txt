@@ -16,4 +16,6 @@ pyinstaller
 
 tkinterdnd2
 
-python-dotenv
+ddgs
+
+openai

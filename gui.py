@@ -78,7 +78,7 @@ class TextEditorDialog(ctk.CTkToplevel):
 class AchillesApp(AchillesBase):
     def __init__(self):
         super().__init__()
-        self.title("Achilles | Batch Optimizer Commander")
+        self.title("Achilles | Master Prompt")
         self.geometry("1150x950")
         
         # --- ESTADO ---
@@ -88,59 +88,59 @@ class AchillesApp(AchillesBase):
         self.active_editor = None
         self.imported_count = 0 
 
-        # --- LAYOUT INTELIGENTE ---
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(9, weight=10) 
+        # --- LAYOUT OPTIMIZADO ---
+        # Configuramos la fila de los logs (fila 7) para que se expanda al máximo
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(7, weight=1) 
 
         # 0. HEADER COMPACTO
-        self.lbl_header = ctk.CTkLabel(self, text="ACHILLES | Master Prompts", font=("Roboto Medium", 18), text_color="#2CC985")
-        self.lbl_header.grid(row=0, column=0, columnspan=3, pady=(10, 5), sticky="w", padx=20)
+        self.lbl_header = ctk.CTkLabel(self, text="ACHILLES | Master Prompt Engine", font=("Roboto Medium", 22), text_color="#2CC985")
+        self.lbl_header.grid(row=0, column=0, pady=(15, 10), sticky="w", padx=30)
 
-        # 1. API KEY & FAMILIA
-        frm_top = ctk.CTkFrame(self, fg_color="transparent")
-        frm_top.grid(row=1, column=0, columnspan=3, padx=20, pady=5, sticky="ew")
+        # 1. SECCIÓN DE IDENTIDAD (Familia)
+        self.frm_id = ctk.CTkFrame(self, fg_color="transparent")
+        self.frm_id.grid(row=1, column=0, padx=30, pady=5, sticky="ew")
         
-        ctk.CTkLabel(frm_top, text="API Key:", font=("Arial", 12, "bold")).pack(side="left", padx=(0, 5))
-        self.entry_api = ctk.CTkEntry(frm_top, width=200, show="●")
-        self.entry_api.pack(side="left", padx=5)
-        
-        ctk.CTkLabel(frm_top, text="Familia ID:", font=("Arial", 12, "bold")).pack(side="left", padx=(20, 5))
-        self.entry_family = ctk.CTkEntry(frm_top, width=200, placeholder_text="ej: 8797esp")
+        ctk.CTkLabel(self.frm_id, text="ID DE FAMILIA:", font=("Arial", 14, "bold")).pack(side="left", padx=(0, 10))
+        self.entry_family = ctk.CTkEntry(self.frm_id, width=300, height=35, placeholder_text="Ejemplo: 8797arg, facturas_v1...", font=("Consolas", 14))
         self.entry_family.pack(side="left", padx=5)
         self.entry_family.bind("<KeyRelease>", self.update_batch_status)
 
-        # --- ZONA DE CARGA ---
-        self.frm_upload = ctk.CTkFrame(self, fg_color="#2B2B2B")
-        self.frm_upload.grid(row=2, column=0, columnspan=3, padx=20, pady=10, sticky="ew")
+        # 2. ZONA DE CARGA DE ARCHIVOS (Compacta)
+        self.frm_upload = ctk.CTkFrame(self, fg_color="#2B2B2B", border_width=1, border_color="#3D3D3D")
+        self.frm_upload.grid(row=2, column=0, padx=30, pady=10, sticky="ew")
         self.frm_upload.grid_columnconfigure(1, weight=1)
 
-        ctk.CTkLabel(self.frm_upload, text="COLA DE PROCESAMIENTO", font=("Arial", 11, "bold"), text_color="gray").grid(row=0, column=0, columnspan=3, pady=5)
+        ctk.CTkLabel(self.frm_upload, text="CONFIGURACIÓN DE LOTE", font=("Arial", 11, "bold"), text_color="#2CC985").grid(row=0, column=0, columnspan=3, pady=(5, 10))
 
-        self.create_input_row(self.frm_upload, 1, "Documento:", "Cargar PDF", "pdf_path", [("Docs", "*.pdf *.jpg")])
-        self.create_input_row(self.frm_upload, 2, "Datos Esperados:", "Cargar JSON", "expected_path", [("Data", "*.txt *.json")], allow_edit=True)
+        self.create_input_row(self.frm_upload, 1, "Documento (PDF/JPG):", "Cargar", "pdf_path", [("Docs", "*.pdf *.jpg")])
+        self.create_input_row(self.frm_upload, 2, "Datos Esperados:", "Cargar", "expected_path", [("Data", "*.txt *.json")], allow_edit=True)
+        self.create_input_row(self.frm_upload, 3, "Prompt Base (Opcional):", "Cargar", "initial_prompt_path", [("Txt", "*.txt")], allow_edit=True)
 
-        self.btn_add = ctk.CTkButton(self.frm_upload, text="⬇️ AGREGAR AL LOTE", command=self.add_case_to_batch, fg_color="#444", hover_color="#555", height=25)
-        self.btn_add.grid(row=3, column=0, columnspan=4, pady=10)
+        self.btn_add = ctk.CTkButton(self.frm_upload, text="⬇️ VINCULAR Y AGREGAR AL LOTE", command=self.add_case_to_batch, 
+                                    fg_color="#333", hover_color="#444", height=32, font=("Arial", 12, "bold"))
+        self.btn_add.grid(row=4, column=0, columnspan=4, pady=15, padx=20, sticky="ew")
 
-        # 4. STATUS (Fila 4)
-        self.lbl_batch_status = ctk.CTkLabel(self, text="📂 Lote: 0 documentos listos.", font=("Arial", 14, "bold"), text_color="#FFA500", anchor="w")
-        self.lbl_batch_status.grid(row=4, column=0, columnspan=3, padx=30, pady=5, sticky="w")
+        # 3. STATUS Y ACCIONES (Fila Horizontal para ahorrar espacio)
+        self.frm_actions = ctk.CTkFrame(self, fg_color="transparent")
+        self.frm_actions.grid(row=4, column=0, padx=30, pady=5, sticky="ew")
 
-        # 5. PROMPT BASE (Fila 5 - NUEVA FUNCIÓN)
-        # Ahora usamos create_input_row para que tenga Editar/Borrar igual que los demás
-        self.create_input_row(self, 5, "📝 Prompt Base:", "Cargar Txt", "initial_prompt_path", [("Txt", "*.txt")], allow_edit=True)
+        self.lbl_batch_status = ctk.CTkLabel(self.frm_actions, text="📂 Lote vacío.", font=("Arial", 14, "bold"), text_color="#FFA500")
+        self.lbl_batch_status.pack(side="left", padx=5)
 
-        # 6. BOTONES DE ACCIÓN (Fila 6 y 7)
-        self.btn_run = ctk.CTkButton(self, text="▶️ EJECUTAR OPTIMIZACIÓN", command=self.start_batch_process, fg_color="#00835D", hover_color="#006648", height=40, font=("Roboto", 14, "bold"))
-        self.btn_run.grid(row=6, column=0, columnspan=3, padx=30, pady=(15, 5), sticky="ew")
+        self.btn_reset = ctk.CTkButton(self.frm_actions, text="🗑️ LIMPIAR TODO", command=self.reset_session, 
+                                      fg_color="#555", hover_color="#8B0000", width=150, height=35)
+        self.btn_reset.pack(side="right", padx=5)
 
-        self.btn_reset = ctk.CTkButton(self, text="🗑️ NUEVA SESIÓN (LIMPIAR)", command=self.reset_session, fg_color="#8B0000", hover_color="#B22222", height=30)
-        self.btn_reset.grid(row=7, column=0, columnspan=3, padx=30, pady=5)
+        self.btn_run = ctk.CTkButton(self.frm_actions, text="▶️ INICIAR OPTIMIZACIÓN MAESTRA", command=self.start_batch_process, 
+                                    fg_color="#00835D", hover_color="#006648", width=300, height=40, font=("Roboto", 14, "bold"))
+        self.btn_run.pack(side="right", padx=20)
 
-        # 9. LOGS
-        ctk.CTkLabel(self, text="Registro de Auditoría:", text_color="gray").grid(row=8, column=0, padx=20, sticky="w", pady=(10,0))
-        self.textbox_log = ctk.CTkTextbox(self, font=("Consolas", 10), text_color="#E0E0E0", fg_color="#1A1A1A")
-        self.textbox_log.grid(row=9, column=0, columnspan=3, padx=20, pady=(0, 20), sticky="nsew")
+        # 4. REGISTRO DE AUDITORÍA (Ocupa el resto de la pantalla)
+        ctk.CTkLabel(self, text="REGISTRO DE AUDITORÍA Y PENSAMIENTO DE IA:", font=("Arial", 11, "bold"), text_color="gray").grid(row=6, column=0, padx=30, sticky="w", pady=(15, 5))
+        
+        self.textbox_log = ctk.CTkTextbox(self, font=("Consolas", 12), text_color="#E0E0E0", fg_color="#121212", border_width=1, border_color="#333")
+        self.textbox_log.grid(row=7, column=0, padx=30, pady=(0, 25), sticky="nsew")
         
         sys.stdout = TextRedirector(self.textbox_log)
         sys.stderr = TextRedirector(self.textbox_log)
@@ -148,62 +148,37 @@ class AchillesApp(AchillesBase):
         self.cleanup_temp_files()
 
     def reset_session(self):
-        """Elimina todos los archivos cargados para empezar de cero."""
-        if not messagebox.askyesno("Confirmar Limpieza", "¿Seguro que quieres borrar todos los documentos cargados y empezar una nueva sesión?"):
+        if not messagebox.askyesno("Confirmar Limpieza", "¿Seguro que quieres borrar todos los documentos cargados y empezar de cero?"):
             return
-            
-        print("\n🧹 Iniciando limpieza de sesión...")
-        
-        # --- TRUCO PARA WINDOWS/ONEDRIVE ---
-        # Esta función fuerza el borrado quitando el atributo "Solo Lectura"
+        print("\n🧹 Limpiando sesión de trabajo...")
         def force_remove_readonly(func, path, excinfo):
             import stat
             os.chmod(path, stat.S_IWRITE) 
             func(path)
-            
         try:
             if main.DOCS_DIR.exists():
-                # Intentamos borrar usando el "handler" de fuerza bruta
                 shutil.rmtree(main.DOCS_DIR, onerror=force_remove_readonly)
-            
-            # Esperamos un microsegundo para que Windows libere el handle
             time.sleep(0.5)
-            
-            # Recreamos la carpeta limpia
             os.makedirs(main.DOCS_DIR, exist_ok=True)
-            
-            # Limpiar variables de GUI
             self.clear_input("pdf_path", self.lbl_pdf_path)
             self.clear_input("expected_path", self.lbl_expected_path)
             self.clear_input("initial_prompt_path", self.lbl_initial_prompt_path)
             self.entry_family.delete(0, 'end')
-            
             self.update_batch_status()
-            print("✅ Sesión reiniciada. Carpeta de casos vacía.")
-            messagebox.showinfo("Limpieza", "Listo para una nueva familia.")
-            
+            print("✅ Carpeta de casos vacía y variables reseteadas.")
         except Exception as e:
-            # Si falla aun así, es porque tienes el archivo ABIERTO en otra ventana
-            print(f"⚠️ Error limpiando: {e}")
-            messagebox.showerror("Error de Permisos", 
-                                 f"Windows no dejó borrar la carpeta.\n\n"
-                                 f"Posibles causas:\n"
-                                 f"1. Tienes un PDF abierto.\n"
-                                 f"2. OneDrive está sincronizando justo ahora.\n\n"
-                                 f"Solución: Espera 10 segundos y prueba de nuevo.")
+            print(f"⚠️ Error al limpiar: {e}")
 
-    # --- HELPERS UI ---
     def create_input_row(self, parent, row, label_text, btn_text, var_name, file_types, allow_edit=False):
-        ctk.CTkLabel(parent, text=label_text, font=("Arial", 12)).grid(row=row, column=0, padx=30, pady=5, sticky="w")
-        
+        ctk.CTkLabel(parent, text=label_text, font=("Arial", 12)).grid(row=row, column=0, padx=20, pady=5, sticky="w")
         frame = ctk.CTkFrame(parent, fg_color="transparent")
-        frame.grid(row=row, column=1, columnspan=2, padx=30, pady=5, sticky="ew")
+        frame.grid(row=row, column=1, columnspan=2, padx=10, pady=5, sticky="ew")
         frame.grid_columnconfigure(1, weight=1)
 
         cmd_load = lambda: self.select_file(var_name, file_types, lbl_val)
-        ctk.CTkButton(frame, text=btn_text, command=cmd_load, width=100, height=25).grid(row=0, column=0, padx=(0, 5))
+        ctk.CTkButton(frame, text=btn_text, command=cmd_load, width=80, height=24).grid(row=0, column=0, padx=(0, 5))
 
-        lbl_val = ctk.CTkLabel(frame, text="...", text_color="gray", anchor="w")
+        lbl_val = ctk.CTkLabel(frame, text="...", text_color="gray", anchor="w", font=("Consolas", 11))
         lbl_val.grid(row=0, column=1, padx=5, sticky="ew")
         
         if DRAG_DROP_AVAILABLE:
@@ -215,17 +190,17 @@ class AchillesApp(AchillesBase):
 
         if allow_edit:
             cmd_edit = lambda: self.open_editor(var_name, lbl_val)
-            ctk.CTkButton(frame, text="✏️", width=30, height=25, fg_color="#444", command=cmd_edit).grid(row=0, column=2, padx=5)
+            ctk.CTkButton(frame, text="✏️", width=28, height=24, fg_color="#444", command=cmd_edit).grid(row=0, column=2, padx=2)
 
         cmd_clear = lambda: self.clear_input(var_name, lbl_val)
-        ctk.CTkButton(frame, text="❌", width=30, height=25, fg_color="#C33", command=cmd_clear).grid(row=0, column=3, padx=5)
+        ctk.CTkButton(frame, text="❌", width=28, height=24, fg_color="#552222", command=cmd_clear).grid(row=0, column=3, padx=2)
         setattr(self, f"lbl_{var_name}", lbl_val)
 
     def select_file(self, var_name, ftypes, lbl):
         f = filedialog.askopenfilename(filetypes=ftypes)
         if f: 
             setattr(self, var_name, f)
-            if hasattr(lbl, "configure"): lbl.configure(text=os.path.basename(f), text_color="white")
+            lbl.configure(text=os.path.basename(f), text_color="white")
 
     def clear_input(self, var_name, lbl):
         setattr(self, var_name, None)
@@ -252,58 +227,50 @@ class AchillesApp(AchillesBase):
                 except: pass
 
     def update_batch_status(self, event=None):
-        fam = self.entry_family.get().strip()
+        fam = main.sanitize_family_id(self.entry_family.get())
         if not fam: self.lbl_batch_status.configure(text="📂 Esperando ID..."); return
-        count = len(list(main.DOCS_DIR.glob(f"expected_*{fam}*.txt"))) if main.DOCS_DIR.exists() else 0
-        self.lbl_batch_status.configure(text=f"📂 Familia '{fam}': {count} casos en cola.")
+        count = len(list(main.DOCS_DIR.glob(f"expected_{fam}_*.txt"))) if main.DOCS_DIR.exists() else 0
+        self.lbl_batch_status.configure(text=f"📂 Familia '{fam}': {count} casos listos")
         self.imported_count = count
 
     def add_case_to_batch(self):
-        fam = self.entry_family.get().strip()
+        fam = main.sanitize_family_id(self.entry_family.get())
         pdf = self.pdf_path
         exp = self.expected_path
-        if not fam or not pdf or not exp: messagebox.showwarning("Faltan Datos", "Completa los campos antes de agregar."); return
-        if not os.path.exists(pdf) or not os.path.exists(exp): messagebox.showerror("Error", "Archivos no encontrados."); return
-
+        if not fam or not pdf or not exp: 
+            messagebox.showwarning("Faltan Datos", "Selecciona documento y datos antes de agregar."); return
         try:
-            safe_name = Path(pdf).stem.replace(" ", "_")
+            safe_name = Path(pdf).stem.replace(" ", "_").lower()
             case_id = f"{fam}_{safe_name}"
             os.makedirs(main.DOCS_DIR, exist_ok=True)
             shutil.copy(pdf, main.DOCS_DIR / f"{case_id}{Path(pdf).suffix}")
             shutil.copy(exp, main.DOCS_DIR / f"expected_{case_id}.txt")
-            print(f"✅ Agregado: {case_id}")
+            print(f"✅ Caso vinculado: {case_id}")
             self.clear_input("pdf_path", self.lbl_pdf_path)
             self.clear_input("expected_path", self.lbl_expected_path)
             self.update_batch_status()
         except Exception as e: messagebox.showerror("Error", str(e))
 
     def start_batch_process(self):
-        api = self.entry_api.get().strip()
-        fam = self.entry_family.get().strip()
-        if not api or not fam: messagebox.showerror("Error", "Falta API Key o ID de Familia."); return
+        fam = main.sanitize_family_id(self.entry_family.get())
+        if not fam: messagebox.showerror("Error", "Falta el ID de Familia."); return
         if self.imported_count == 0: 
-            if not messagebox.askyesno("¿Buscar?", "No cargaste nada nuevo. ¿Buscar casos existentes en carpeta?"): return
+            if not messagebox.askyesno("¿Buscar?", f"No hay archivos nuevos. ¿Procesar casos existentes de '{fam}'?"): return
+        self.btn_run.configure(state="disabled", text="⏳ OPTIMIZANDO...")
+        threading.Thread(target=self.run_logic, args=(fam,), daemon=True).start()
 
-        self.btn_run.configure(state="disabled", text="⏳ EJECUTANDO...")
-        threading.Thread(target=self.run_logic, args=(api, fam), daemon=True).start()
-
-    def run_logic(self, api_key, family):
+    def run_logic(self, family):
         try:
-            print(f"\n{'='*40}\n🚀 ACHILLES BATCH: {family.upper()}\n{'='*40}")
-            nodes.client.api_key = api_key; detective.client.api_key = api_key
+            print(f"\n🚀 INICIANDO PROCESO MAESTRO PARA: {family.upper()}")
             os.makedirs(main.PROMPTS_DIR, exist_ok=True)
-            
             dest_master = main.PROMPTS_DIR / f"MASTER_{family}.txt"
             
             if self.initial_prompt_path:
                 try:
                     if os.path.abspath(self.initial_prompt_path) != os.path.abspath(dest_master):
                         shutil.copy(self.initial_prompt_path, dest_master)
-                        print(f"📝 Prompt Semilla copiado.")
-                    else:
-                        print(f"📝 Usando Prompt Semilla ya existente en destino.")
-                except Exception as e:
-                    print(f"⚠️ Nota: No se pudo copiar prompt inicial: {e}")
+                        print(f"📝 Prompt Semilla cargado correctamente.")
+                except Exception as e: print(f"⚠️ Nota: {e}")
 
             result = main.run_family_batch(family)
             
@@ -312,53 +279,41 @@ class AchillesApp(AchillesBase):
                 tactic = result.get('best_tactic', "")
                 original = result.get('original_prompt', "")
                 
-                print(f"\n👮‍♂️ INICIANDO PROTOCOLO DE FINALIZACIÓN (Sintaxis)...")
+                # --- 1. RESCATAMOS LA BANDERA DE MANUSCRITO ---
+                flag_manuscrito = result.get('has_handwriting', False)
                 
                 expected_keys = []
                 batch_q = result.get('batch_queue', [])
                 if batch_q and 'expected_data' in batch_q[0]:
                     expected_keys = list(batch_q[0]['expected_data'].keys())
-                
-                separator = "=== OPTIMIZED TACTIC (Family Version) ==="
-                if "=== ORIGINAL PROMPT ===" in original:
-                     base_prompt = original.split("=== ORIGINAL PROMPT ===")[1].strip()
-                else:
-                     base_prompt = original.strip()
 
-                raw_content = (
-                    f"{separator}\n"
-                    f"{tactic}\n\n"
-                    f"=== ORIGINAL PROMPT ===\n"
-                    f"{base_prompt}"
-                )
-
-                final_content = nodes.syntax_enforcer_agent(raw_content, expected_keys)
+                base_prompt = original.split("=== ORIGINAL PROMPT ===")[1].strip() if "=== ORIGINAL PROMPT ===" in original else original
+                raw_content = f"=== OPTIMIZED TACTIC (Family Version) ===\n{tactic}\n\n=== ORIGINAL PROMPT ===\n{base_prompt}"
                 
-                print(f"\n✋ VALIDACIÓN REQUERIDA.")
-                should_save = messagebox.askyesno(
-                    "Validación de Resultados", 
-                    f"El proceso finalizó con un Score Promedio de {score:.1f}%.\n\n"
-                    f"¿Deseas SOBRESCRIBIR el Prompt Maestro actual con esta nueva versión optimizada?"
+                # --- 2. PASAMOS LA BANDERA AL AGENTE ---
+                final_content = nodes.syntax_enforcer_agent(
+                    raw_content, 
+                    expected_keys, 
+                    has_handwriting=flag_manuscrito  # <--- EL PUENTE APLICADO AQUÍ
                 )
                 
-                if should_save:
-                    with open(dest_master, "w", encoding="utf-8") as f:
-                        f.write(final_content)
-                    print(f"✅ GUARDADO. Score: {score:.1f}%")
-                    messagebox.showinfo("Éxito", "Prompt Maestro actualizado correctamente.")
-                else:
-                    print(f"🚫 Guardado cancelado por el usuario. Se mantiene la versión anterior.")
-                    messagebox.showinfo("Cancelado", "No se realizaron cambios en el Prompt Maestro.")
-
-            else: 
-                print("❌ Sin resultados.")
-        except Exception as e: print(f"❌ Error: {e}"); import traceback; traceback.print_exc()
+                print(f"\n✋ VALIDACIÓN FINAL REQUERIDA.")
+                if messagebox.askyesno("Resultado Final", f"Entrenamiento completado con {score:.1f}%.\n¿Sobrescribir el Prompt Maestro?"):
+                    with open(dest_master, "w", encoding="utf-8") as f: f.write(final_content)
+                    print(f"✅ GUARDADO EXITOSO.")
+                else: print(f"🚫 Guardado cancelado.")
+            else: print("❌ El proceso no generó resultados válidos.")
+        except Exception as e: print(f"❌ Error crítico: {e}"); import traceback; traceback.print_exc()
         finally: 
-            self.btn_run.configure(state="normal", text="▶️ EJECUTAR")
+            self.btn_run.configure(state="normal", text="▶️ INICIAR OPTIMIZACIÓN")
             self.update_batch_status()
 
 if __name__ == "__main__":
-    if not os.path.exists("casos_docs"): os.makedirs("casos_docs")
-    if not os.path.exists("prompt_textos"): os.makedirs("prompt_textos")
+    # Usar las rutas ya calculadas en main para que coincidan siempre
+    if not main.DOCS_DIR.exists(): 
+        main.DOCS_DIR.mkdir(parents=True, exist_ok=True)
+    if not main.PROMPTS_DIR.exists(): 
+        main.PROMPTS_DIR.mkdir(parents=True, exist_ok=True)
+        
     app = AchillesApp()
     app.mainloop()

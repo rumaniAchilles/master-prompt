@@ -31,3 +31,4 @@ class AgentState(TypedDict):
     best_avg_score: float
     best_tactic: str
     tried_tactics: List[str]
+    semantic_context: str

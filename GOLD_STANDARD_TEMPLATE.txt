@@ -70,13 +70,3 @@ Your goal is to extract specific fields with 100% precision, handling OCR noise 
 
 PHASE 1 - REASONING:
 [Step-by-step logic here. Identify the document type first. Then locate the tax section boundaries. List the raw values found for each field, show the normalization process, and explain the final decision.]
-
-PHASE 2 - FINAL JSON:
-{
-  "346": { "value": "...", "confidence": 0.95, "status": "approved" },
-  "6495": { "value": "...", "confidence": 0.95, "status": "approved" },
-  "16080": { "value": "...", "confidence": 0.95, "status": "approved" },
-  "16083": { "value": "NOK", "confidence": 1.0, "status": "approved" },
-  "16549": { "value": "...", "confidence": 0.95, "status": "approved" },
-  "document_type": { "value": "...", "confidence": 0.95, "status": "approved" }
-}

@@ -61,10 +61,6 @@ Para documentos financieros densos (Balances, Recibos de Sueldo) donde las colum
         * 8 ↔ B
         * 2 ↔ Z
 
-## 10. FORMATO DE SALIDA (JSON PURO)
-* **Salida Limpia:** Devuelve SOLAMENTE el objeto JSON. Sin bloques de markdown (` ```json `), sin introducciones ("Here is the data...").
-* **Null Safety:** Si un campo es ilegible o no existe, usa `null`. JAMÁS inventes ni alucines datos.
-
 ## 11. PROTOCOLO DE SEGURIDAD "ANTI-LEAKAGE" (ZERO CHEATING)
 * **Prohibición Absoluta de Valores Reales:** JAMÁS incluyas el valor esperado ("Ground Truth") dentro de las instrucciones del prompt.
 * **Generalización Obligatoria:** Si el modelo falló al extraer "ABC-123", no escribas una regla para "ABC-123". Escribe una regla para "el patrón alfanumérico de 3 letras y 3 dígitos".

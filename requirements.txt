@@ -14,8 +14,22 @@ customtkinter
 
 pyinstaller
 
-tkinterdnd2
+langchain-core
 
 ddgs
 
 openai
+
+fastapi
+
+sqlalchemy
+
+uvicorn
+
+python-multipart
+
+requests
+
+opencv-python
+
+Pillow

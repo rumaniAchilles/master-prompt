@@ -1,88 +1,141 @@
-import sqlite3
+import os
 import json
-import sys
-from pathlib import Path
+from datetime import datetime
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text, desc
+from sqlalchemy.orm import declarative_base, sessionmaker
+
+# 1. Definición Base del ORM (Object-Relational Mapping)
+Base = declarative_base()
+
+class SuccessTactic(Base):
+    __tablename__ = 'success_tactics'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    family = Column(String, index=True) # Indexado para búsquedas ultrarrápidas
+    tactic = Column(Text)
+    score = Column(Float)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class FailedTactic(Base):
+    __tablename__ = 'failed_tactics'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    family = Column(String, index=True)
+    tactic = Column(Text)
+    errors = Column(Text)
+    timestamp = Column(DateTime, default=datetime.utcnow)
+
+class OptimizationJob(Base):
+    """Tabla para trackear el estado de la orquestación en tiempo real."""
+    __tablename__ = 'optimization_jobs'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    family = Column(String, index=True, unique=True) # Un trabajo activo por familia
+    status = Column(String) # "in_progress", "completed", "failed"
+    score = Column(Float, default=0.0)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 class AgentMemory:
     def __init__(self):
-        # 1. Localización Robusta (Integración con el Paso 2)
-        if getattr(sys, 'frozen', False):
-            base_path = Path(sys.executable).parent
-        else:
-            base_path = Path(__file__).resolve().parent
-            
-        self.db_path = base_path / "agent_memory.db"
+        """
+        Inicializa la conexión preparada para Alto Tráfico.
+        En producción, DATABASE_URL debe ser una base de datos real (PostgreSQL/MySQL).
+        Ejemplo: postgresql://usuario:password@localhost:5432/achilles_db
+        """
+        # Fallback a SQLite para desarrollo local
+        self.db_url = os.getenv("DATABASE_URL", "sqlite:///./agent_memory.db")
         
-        # 2. Conexión con Timeout y Aislamiento
-        # timeout=20: Si la base de datos está ocupada, espera hasta 20 segundos antes de fallar.
-        self.conn = sqlite3.connect(
-            str(self.db_path), 
-            check_same_thread=False, 
-            timeout=20 
+        # Configuraciones especiales dependiendo del motor
+        connect_args = {}
+        if self.db_url.startswith("sqlite"):
+            # Permite múltiples hilos en SQLite (necesario para FastAPI)
+            connect_args = {"check_same_thread": False}
+            
+        # 2. El Motor con "Connection Pooling"
+        # pool_pre_ping verifica que la conexión siga viva antes de usarla
+        self.engine = create_engine(
+            self.db_url, 
+            connect_args=connect_args,
+            pool_pre_ping=True
         )
-        # WAL Mode: Permite que varios hilos lean mientras uno escribe, evitando bloqueos.
-        self.conn.execute("PRAGMA journal_mode=WAL;")
-        self._init_db()
-
-    def _init_db(self):
-        """Inicializa las tablas si no existen."""
-        with self.conn: # Usar contexto 'with' asegura que se haga commit automáticamente
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS success_tactics 
-                (family TEXT, tactic TEXT, score REAL, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)
-            """)
-            self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS failed_tactics 
-                (family TEXT, tactic TEXT, errors TEXT, timestamp DATETIME DEFAULT CURRENT_TIMESTAMP)
-            """)
+        
+        # Crea las tablas si no existen en el motor seleccionado
+        Base.metadata.create_all(bind=self.engine)
+        
+        # Fábrica de sesiones para interactuar con la DB
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
 
     def get_best_tactic(self, family):
         """Busca la mejor táctica histórica para esta familia."""
         family_id = str(family).strip().lower()
-        cursor = self.conn.cursor()
-        res = cursor.execute(
-            "SELECT tactic FROM success_tactics WHERE family = ? ORDER BY score DESC, timestamp DESC LIMIT 1", 
-            (family_id,)
-        ).fetchone()
-        return res[0] if res else None
+        with self.SessionLocal() as session:
+            res = session.query(SuccessTactic)\
+                .filter(SuccessTactic.family == family_id)\
+                .order_by(desc(SuccessTactic.score), desc(SuccessTactic.timestamp))\
+                .first()
+            return res.tactic if res else None
 
     def save_success(self, family, tactic, score):
         """Guarda una táctica exitosa."""
         family_id = str(family).strip().lower()
         try:
-            with self.conn:
-                self.conn.execute(
-                    "INSERT INTO success_tactics (family, tactic, score) VALUES (?, ?, ?)", 
-                    (family_id, tactic, score)
-                )
-        except sqlite3.Error as e:
+            with self.SessionLocal() as session:
+                new_success = SuccessTactic(family=family_id, tactic=tactic, score=score)
+                session.add(new_success)
+                session.commit()
+        except Exception as e:
             print(f"⚠️ Error al guardar éxito en DB: {e}")
 
     def save_failure(self, family, tactic, errors):
         """Registra un fallo para evitar repetir la misma estrategia."""
         family_id = str(family).strip().lower()
         try:
-            with self.conn:
-                self.conn.execute(
-                    "INSERT INTO failed_tactics (family, tactic, errors) VALUES (?, ?, ?)", 
-                    (family_id, tactic, json.dumps(errors))
+            with self.SessionLocal() as session:
+                new_fail = FailedTactic(
+                    family=family_id, 
+                    tactic=tactic, 
+                    errors=json.dumps(errors)
                 )
-        except sqlite3.Error as e:
+                session.add(new_fail)
+                session.commit()
+        except Exception as e:
             print(f"⚠️ Error al guardar fallo en DB: {e}")
     
     def get_recent_failures(self, family):
-        """Recupera las últimas tácticas fallidas de la familia."""
+        """Recupera las últimas 5 tácticas fallidas de la familia."""
         family_id = str(family).strip().lower()
-        res = self.conn.execute(
-            "SELECT tactic FROM failed_tactics WHERE family = ? ORDER BY timestamp DESC LIMIT 5", 
-            (family_id,)
-        ).fetchall()
-        return [r[0] for r in res]
+        with self.SessionLocal() as session:
+            res = session.query(FailedTactic)\
+                .filter(FailedTactic.family == family_id)\
+                .order_by(desc(FailedTactic.timestamp))\
+                .limit(5)\
+                .all()
+            return [r.tactic for r in res]
 
     def clear_family_memory(self, family):
         """Limpia el historial de una familia específica."""
         family_id = str(family).strip().lower()
-        with self.conn:
-            self.conn.execute("DELETE FROM success_tactics WHERE family = ?", (family_id,))
-            self.conn.execute("DELETE FROM failed_tactics WHERE family = ?", (family_id,))
+        with self.SessionLocal() as session:
+            session.query(SuccessTactic).filter(SuccessTactic.family == family_id).delete()
+            session.query(FailedTactic).filter(FailedTactic.family == family_id).delete()
+            session.commit()
         print(f"🧹 Memoria borrada para la familia: {family_id}")
+
+    def create_or_update_job(self, family, status, score=0.0):
+        """Crea o actualiza el estado de un trabajo de optimización."""
+        family_id = str(family).strip().lower()
+        with self.SessionLocal() as session:
+            job = session.query(OptimizationJob).filter(OptimizationJob.family == family_id).first()
+            if job:
+                job.status = status
+                job.score = score
+            else:
+                job = OptimizationJob(family=family_id, status=status, score=score)
+                session.add(job)
+            session.commit()
+
+    def get_job_status(self, family):
+        """Devuelve el estado actual para que lo lea el front-end."""
+        family_id = str(family).strip().lower()
+        with self.SessionLocal() as session:
+            job = session.query(OptimizationJob).filter(OptimizationJob.family == family_id).first()
+            if job:
+                return {"family_id": job.family, "status": job.status, "score": job.score, "last_update": job.updated_at}
+            return None

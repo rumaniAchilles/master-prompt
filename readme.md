@@ -1,82 +1,117 @@
-# 🏛️ Achilles | Master Prompt Engine
+🧠 Prompt Builder Service (Auto-Orquestador)
+Versión: 2.0.0
+Descripción: Motor de orquestación asíncrono y optimización continua de prompts para el ecosistema document-analyzer.
 
-**Achilles** es un motor avanzado de Ingeniería de Prompts automatizada (Data-Driven Prompt Optimization) diseñado específicamente para la extracción de datos en documentos oficiales complejos, formularios y archivos con texto manuscrito (HTR).
+Este microservicio utiliza LangGraph y Azure OpenAI (GPT-4o) para automatizar la ingeniería de prompts. Analiza documentos, genera tácticas de extracción utilizando anclajes visuales, prueba iterativamente las instrucciones contra el motor principal y consolida un Prompt Group optimizado listo para producción.
 
-En lugar de requerir que un humano escriba y pruebe prompts iterativamente, Achilles utiliza un **Sistema Híbrido de IA (Brain + Muscle)** orquestado mediante grafos (`LangGraph`) para evaluar, detectar fallos y reescribir sus propias instrucciones hasta alcanzar la máxima precisión de extracción posible.
+🏗️ Arquitectura y Flujo de Trabajo
+El servicio opera de manera asíncrona (Fire and Forget) para soportar alto tráfico. El flujo se divide en tres fases principales:
 
----
+1. Ingesta y Setup (api.py & worker.py)
+La API recibe los documentos, el JSON esperado (Ground Truth) y los identificadores requeridos (family_id, id_document_type, id_user, company_id).
 
-## ✨ Características Principales
+Se registra el inicio del trabajo en una base de datos local SQLite para trazabilidad.
 
-* 🧠 **Arquitectura Híbrida (Azure + Fireworks):** Utiliza GPT-4o ("The Brain") para el razonamiento, detección visual y redacción de estrategias, y Llama 4 Maverick ("The Muscle") para simular la extracción masiva de datos en producción.
-* 🔄 **Bucle de Auto-Optimización (LangGraph):** El sistema extrae, valida contra una verdad fundamental (Ground Truth), analiza los errores y optimiza el prompt en un ciclo iterativo hasta alcanzar un umbral de éxito (ej. 98%) o un límite de intentos.
-* ✍️ **Detección Automática de Manuscritos (HTR Protocol):** El nodo de investigación detecta si el documento contiene tinta manuscrita o firmas, activando excepciones en el prompt final para prohibir la auto-corrección ortográfica y habilitar el razonamiento visual profundo.
-* 🛡️ **Zero Data Loss Protocol:** La Refinería y el Optimizador están programados para limpiar y estructurar el prompt *sin borrar jamás* las reglas de negocio específicas, condicionales o casos límite (edge cases) del usuario.
-* 🔍 **Búsqueda Semántica Dual (Smart Paging):** Escanea PDFs largos buscando coincidencias de "Llaves" y "Valores" para extraer solo las páginas relevantes y enviarlas a la IA, ahorrando tokens y previniendo alucinaciones.
+El Worker en segundo plano convierte los PDFs a imágenes temporales y prepara el estado inicial para el orquestador.
 
----
+2. El Grafo de Optimización (LangGraph)
+El ciclo iterativo de LangGraph transita por los siguientes nodos inteligentes:
 
-## ⚙️ Arquitectura del Sistema (El Grafo)
+Refinería & Lógica (input_refinery_node): Limpia y estructura el prompt base si es proporcionado.
 
-Achilles funciona como un flujo de estados secuenciales e iterativos definido en `app.py`.
+Investigador (research_node): Realiza un análisis forense visual, detecta si hay texto manuscrito (HTR) y define la estrategia de layout (fijo vs. dinámico).
 
-1.  **Refinería (`input_refinery_node`):** Recibe un prompt inicial (si existe) y lo compila. Limpia la estructura pero blinda las reglas de negocio en un formato de pseudocódigo accionable.
-2.  **Investigador (`research_node`):** GPT-4o analiza visualmente una muestra de los documentos. Identifica anclajes universales, detecta la presencia de manuscritos (`has_handwriting`) y busca contexto legal en la web mediante DuckDuckGo.
-3.  **Extracción (`extraction_node`):** Llama 4 toma el prompt actual y las imágenes, y extrae los datos devolviendo un esquema JSON estricto (`valor`, `confianza`, `Estado`).
-4.  **Validación (`validation_node`):** Un motor lógico puro compara el JSON extraído con el Ground Truth usando reglas de negocio (coincidencia exacta, difusa, o parseo inteligente multilingüe de fechas).
-5.  **Optimización (`optimizer_node`):** "El Arquitecto". Si la extracción falla, GPT-4o analiza los errores (mismatches) y reescribe la táctica de extracción solucionando el problema, pero preservando el ADN del negocio.
-6.  *Fallback:* Si no hay prompt inicial, el **Detective** (`detective.py`) realiza un "Arranque en Frío" haciendo ingeniería inversa para crear un prompt desde cero basándose en la imagen y los datos esperados.
-7.  **Agente de Sintaxis (`syntax_enforcer_agent`):** El "Policía". Una vez finalizado el entrenamiento, compila el Prompt de Producción final, eliminando burocracia, traduciendo instrucciones al inglés (manteniendo variables en español) y forzando un único esquema JSON de ejemplo.
+Configurador (configurator_node): Convierte el Ground Truth en una matriz de validación estricta (parameters), asignando operadores lógicos (ej. containment, onlyAlphanumericEquals).
 
----
+Extractor / Tester (test_analyzer_node): Cliente HTTP que ensambla el payload con {{placeholders}} y lo envía al document-analyzer para ser evaluado.
 
-## 🚀 Requisitos e Instalación
+Validador (validation_node): Compara los resultados del motor contra la matriz de configuración, calcula el score y empaqueta los errores detallados.
 
-1. **Dependencias de Python:**
-   Asegúrate de tener instalado Python 3.9+ e instala los requerimientos:
-   ```bash
-   pip install -r requirements.txt
-Configuración de Entorno (.env o config.py):
-El sistema requiere las credenciales de los modelos híbridos. Configura las siguientes variables:
+Optimizador (optimizer_node): (Solo si hay errores). Ajusta las instrucciones de búsqueda heurística basándose en el feedback, sin generar schemas JSON manuales y respetando estrictamente la sintaxis {{key:name}}.
 
-AZURE_ENDPOINT, AZURE_API_KEY, AZURE_API_VERSION, AZURE_DEPLOYMENT_NAME (Para GPT-4o / The Brain)
+3. El Handoff Oficial
+Una vez que el prompt alcanza un 100% de éxito (o se agotan los intentos), el Worker empaqueta el prompt final y la configuración de comparadores (comparison_config) y ejecuta un POST /api/v1/prompts/groups para guardar el grupo definitivamente en el document-analyzer.
 
-FIREWORKS_API_KEY, FIREWORKS_MODEL_ID (Para Llama 4 / The Muscle)
+🚀 Requisitos e Instalación
+Variables de Entorno
+Crea un archivo .env en la raíz del proyecto o configura las siguientes variables en tu sistema:
 
-🛠️ Uso Básico (Modo Interfaz Gráfica)
-Achilles incluye una interfaz de usuario construida con CustomTkinter (gui.py) diseñada para un flujo de trabajo ágil.
+Fragmento de código
+# Claves de la IA (El Cerebro)
+AZURE_ENDPOINT="https://tu-recurso.openai.azure.com/"
+AZURE_API_KEY="tu-clave"
+AZURE_API_VERSION="2024-12-01-preview"
+AZURE_DEPLOYMENT_NAME="gpt-4.1"
 
-Ejecutar la Interfaz:
+# Conexión al document-analyzer (El Músculo)
+ANALYZER_BASE_URL="http://localhost:8000"
+ANALYZER_API_TOKEN="tu-token-de-autorizacion"
 
+# Entorno de Pruebas
+MOCK_MODE="True" # Cambiar a "False" para conectar con el servicio real
+DATABASE_URL="sqlite:///./agent_memory.db"
+Levantar el Servicio
 Bash
-python gui.py
-Identidad: Define un ID de Familia (ej. tgr_certificados_v1). Todos los documentos y prompts generados se asociarán a este ID.
+# Instalar dependencias
+pip install fastapi uvicorn requests langgraph pydantic openai sqlalchemy pymupdf duckduckgo-search
 
-Cargar Documento: Sube un PDF o JPG representativo del lote.
+# Iniciar el servidor
+uvicorn api:app --host 0.0.0.0 --port 8001 --reload
+🕹️ Cómo Usar el Servicio
+1. Iniciar una Optimización
+Puedes probar el servicio accediendo a Swagger UI en http://localhost:8001/docs e interactuando con el endpoint POST /api/v1/optimize.
 
-Cargar Datos Esperados: Sube un archivo .txt o .json con la "Verdad Fundamental" (Ground Truth) que esperas que el modelo extraiga.
+Ejemplo de Payload:
 
-Formato aceptado: JSON plano o texto con estructura ID: Valor.
+family_id: cert_seguro_v1
 
-Prompt Base (Opcional): Si tienes instrucciones previas o reglas de negocio crudas, súbelas en un archivo .txt.
+id_document_type: bc2b9b8b...
 
-Ejecutar: Haz clic en "Añadir al Lote" y luego en "Iniciar Optimización Maestra".
+id_user: usr-prompt-builder
 
-Resultado: Observa el registro de auditoría. Al finalizar, Achilles te preguntará si deseas guardar el Prompt Maestro generado en la carpeta prompt_textos/.
+company_id: comp-achilles-001
 
-📂 Estructura del Proyecto
-app.py: Definición del Grafo de LangGraph y las rutas condicionales.
+ground_truth:
 
-nodes.py: Contiene la lógica profunda de cada nodo (Refinería, IA Forense, Llama, Arquitecto).
+JSON
+{
+  "dni": {"value": "46065929B"},
+  "fecha_emision": {"value": "2025-01-15"}
+}
+original_prompt: (Dejar en blanco para que el Detective auto-genere el borrador 1).
 
-gui.py: Frontend interactivo y orquestador del paso final de Sintaxis.
+documento: Seleccionar un PDF o Imagen de muestra.
 
-main.py: Ejecutor de lotes, pre-procesamiento de PDFs a JPG (300 DPI) e inicializador del estado general.
+2. Monitorear el Estado
+Como el proceso es asíncrono, puedes consultar el estado en tiempo real (ideal para barras de progreso en el Frontend) usando:
 
-detective.py: Agente especializado en "Arranque en Frío" mediante ingeniería inversa.
+GET /api/v1/optimize/status/{family_id}
 
-validators.py: Funciones matemáticas y de texto para comparar el dato extraído vs. el esperado (Fechas, Levenshtein, Normalización).
+Respuesta esperada:
 
-database.py: Memoria SQLite (AgentMemory) para evitar repetir errores pasados.
+JSON
+{
+  "family_id": "cert_seguro_v1",
+  "status": "completed", // "in_progress", "completed", "failed"
+  "score": 100.0,
+  "last_update": "2026-03-31T10:00:00Z"
+}
+📦 Qué Esperar (El Entregable Final)
+Al finalizar exitosamente, el servicio realiza dos acciones:
 
-MASTER_PROMPT_GUIDE.md: La "Constitución" que guía al Arquitecto sobre cómo escribir buenos prompts, incluyendo el protocolo HTR para manuscritos.
+Guardado Remoto: Envía el payload al sistema principal mediante HTTP (save_prompt_group).
+
+Respaldo Local: Guarda una copia física del JSON en la carpeta /prompt_groups_output/GROUP_{family_id}.json para auditoría.
+
+El Prompt Group generado contendrá un contexto maestro enriquecido, tácticas de extracción blindadas contra variaciones visuales (incluyendo protocolos HTR si es necesario) y una matriz comparison_config limpia (sin name ni value) lista para ser inyectada dinámicamente en producción.
+
+🔭 Próximos Pasos (Roadmap de Escalabilidad)
+Aunque el servicio actual es robusto, la arquitectura permite las siguientes evoluciones orgánicas:
+
+Prompting Secuencial Inteligente: Modificar el ensamblador para que divida el prompt en un List[str], permitiendo que el LLM del motor principal (ej. Gravity) realice un razonamiento de contexto en el paso 1, y una extracción estricta en el paso 2, reduciendo la carga cognitiva.
+
+Ampliación del Arsenal de Operadores:
+Actualizar el System Prompt del configurator_node para enseñarle a GPT-4o a inferir de forma autónoma reglas matemáticas avanzadas (ej. resolve_arithmetic, operadores de fechas v3 y linked_keys condicionales).
+
+Selección Dinámica de Modelos:
+Añadir el campo llm_model a la request inicial (api.py) para permitir que el usuario decida si el grupo se optimizará para "gravity", "mercurio", o "mercurio2_5".
